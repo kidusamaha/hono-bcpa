@@ -5,104 +5,83 @@ const app = new Hono()
 app.get('/', (c) => {
   return c.text('Hello Hono!')
 })
+
 type User = {
-  id: string;
-  name: string;
-  email: string;
-  password: string; 
-};
-
-const users: User[] = [];
-
-
-function generateId() {
-  return crypto.randomUUID();
+  id: string
+  name: string
+  email: string
+  password: string
 }
 
-function sanitizeUser(user: User) {
-  const { password: _password, ...rest } = user;
-  return rest;
-}
+const users: User[] = []
 
-app.get("/users", (c) => {
-  const publicUsers = users.map(sanitizeUser);
-  return c.json(publicUsers);
-});
+const generateId = () => crypto.randomUUID()
 
-app.get("/users/:id", (c) => {
-  const id = c.req.param("id");
-  const user = users.find((u) => u.id === id);
-
-  if (!user) {
-    return c.json({ error: "User not found" }, 404);
-  }
-
-  return c.json(sanitizeUser(user));
-});
-
-app.post("/signup", async (c) => {
-  const body = await c.req.json().catch(() => null);
-
-  if (!body) {
-    return c.json({ error: "Invalid JSON body" }, 400);
-  }
-
-  const { name, email, password } = body as {
-    name?: string;
-    email?: string;
-    password?: string;
-  };
+app.post('/signup', async (c) => {
+  const { name, email, password } = await c.req.json()
 
   if (!name || !email || !password) {
-    return c.json({ error: "name, email, and password are required" }, 400);
+    return c.json({ error: 'Missing fields' }, 400)
   }
 
-  const existingUser = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (existingUser) {
-    return c.json({ error: "Email already exists" }, 409);
+  const exists = users.find(u => u.email === email)
+  if (exists) {
+    return c.json({ error: 'Email already exists' }, 409)
   }
 
-  const newUser: User = {
+  const user: User = {
     id: generateId(),
     name,
     email,
-    password,
-  };
-
-  users.push(newUser);
-  return c.json(sanitizeUser(newUser), 201);
-});
-
-app.post("/signin", async (c) => {
-  const body = await c.req.json().catch(() => null);
-
-  if (!body) {
-    return c.json({ error: "Invalid JSON body" }, 400);
+    password
   }
 
-  const { email, password } = body as {
-    email?: string;
-    password?: string;
-  };
+  users.push(user)
 
-  if (!email || !password) {
-    return c.json({ error: "email and password are required" }, 400);
-  }
+  return c.json({ id: user.id, name, email })
+})
 
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+app.post('/signin', async (c) => {
+  const { email, password } = await c.req.json()
+
+  const user = users.find(u => u.email === email && u.password === password)
 
   if (!user) {
-    return c.json({ error: "Invalid credentials" }, 401);
-  }
-
-  if (user.password !== password) {
-    return c.json({ error: "Invalid credentials" }, 401);
+    return c.json({ error: 'Invalid credentials' }, 401)
   }
 
   return c.json({
-    message: "Signin successful",
-    user: sanitizeUser(user),
-  });
-});
+    message: 'Signin successful',
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email
+    }
+  })
+})
+
+app.get('/users', (c) => {
+  return c.json(users.map(({ id, name, email }) => ({
+    id,
+    name,
+    email
+  })))
+})
+
+app.get('/users/:id', (c) => {
+  const id = c.req.param('id')
+
+  const user = users.find(u => u.id === id)
+
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404)
+  }
+
+  return c.json({
+    id: user.id,
+    name: user.name,
+    email: user.email
+  })
+})
 
 export default app
